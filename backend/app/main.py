@@ -1,6 +1,5 @@
-"""Application factory. Registers middleware, exception handlers, and the
-health endpoint. No business routers are included yet — the first one
-(auth) lands in Sprint 2.
+"""Application factory. Registers middleware, exception handlers, the
+health endpoint, and every module's router.
 """
 
 from typing import Any
@@ -13,6 +12,10 @@ from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware.request_id import RequestIdMiddleware
+from app.modules.auth.api import router as auth_router
+from app.modules.company.api import router as company_router
+from app.modules.dashboard.api import router as dashboard_router
+from app.modules.users_roles_permissions.api import router as users_router
 
 logger = get_logger(__name__)
 
@@ -45,6 +48,12 @@ def create_app() -> FastAPI:
             data={"status": "ok", "environment": settings.environment},
             message="RetailOS API is running",
         )
+
+    api_v1_prefix = settings.api_v1_prefix
+    app.include_router(auth_router, prefix=api_v1_prefix)
+    app.include_router(company_router, prefix=api_v1_prefix)
+    app.include_router(users_router, prefix=api_v1_prefix)
+    app.include_router(dashboard_router, prefix=api_v1_prefix)
 
     logger.info("app_configured", environment=settings.environment)
     return app
