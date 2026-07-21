@@ -82,3 +82,24 @@ The system must support:
 - Multiple businesses
 - Cloud deployment
 - Thousands of concurrent users
+
+---
+
+## Implementation Status
+
+See `SPRINT0.md` for the full architecture contract and `CHANGELOG.md`
+for what shipped each sprint.
+
+- **Sprint 1** — infrastructure foundation: FastAPI/SQLAlchemy/Alembic
+  backend skeleton, Flutter/Riverpod/GoRouter/Drift frontend skeleton,
+  Docker Compose, CI, JWT utilities (no persistence yet).
+- **Sprint 2** — Identity & Organization: Company/Branch/Warehouse,
+  Users/Roles/Permissions (RBAC), full authentication (login, refresh
+  rotation with reuse detection, password reset framework, account
+  lockout, device sessions, branch switching), and the corresponding
+  Flutter screens (Splash, Login, Forgot/Reset Password, Company Setup
+  Wizard, Branch Selection, Dashboard Shell, Navigation Shell, Profile).
+  Tenant isolation is enforced at the application layer; Postgres RLS is
+  deferred to Sprint 3 (`docs/adr/0003`).
+- **Not yet implemented**: Products, Inventory, Purchases, Customers,
+  Suppliers, POS/Billing, Reports, AI modules — per `TASKS.md`.
