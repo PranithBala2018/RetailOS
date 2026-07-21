@@ -36,11 +36,17 @@ class Settings(BaseSettings):
     # --- Redis (cache / rate-limit / future Celery broker, per SPRINT0 §22) ---
     redis_url: RedisDsn = Field(default=RedisDsn("redis://localhost:6379/0"))
 
-    # --- JWT (foundation only — see SPRINT0 §16) ---
+    # --- JWT (see SPRINT0 §16) ---
     jwt_secret_key: str = Field(default="change-me-in-every-non-development-environment")
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
+    # "Remember me" duration vs. a plain session — see auth/service.py.
     refresh_token_expire_days: int = 30
+    refresh_token_expire_days_session: int = 1
+
+    # --- Account lockout ---
+    max_failed_login_attempts: int = 5
+    account_lockout_minutes: int = 15
 
     # --- CORS ---
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])

@@ -31,6 +31,10 @@ class TokenPayload(BaseModel):
     sub: str
     """Subject — the authenticated user's id (UUID as string)."""
     company_id: str | None = None
+    branch_id: str | None = None
+    """The user's currently active branch — set at login (their default)
+    and re-issued by POST /auth/switch-branch. Session-level, not a
+    permanent user attribute."""
     token_type: TokenType
     jti: str
     iat: datetime
@@ -62,13 +66,15 @@ def _create_token(
     subject: str,
     token_type: TokenType,
     expires_delta: timedelta,
-    company_id: str | None,
+    company_id: str | None = None,
+    branch_id: str | None = None,
     settings: Settings,
 ) -> str:
     now = datetime.now(UTC)
     payload = TokenPayload(
         sub=subject,
         company_id=company_id,
+        branch_id=branch_id,
         token_type=token_type,
         jti=str(uuid.uuid4()),
         iat=now,
@@ -77,6 +83,7 @@ def _create_token(
     claims: dict[str, Any] = {
         "sub": payload.sub,
         "company_id": payload.company_id,
+        "branch_id": payload.branch_id,
         "token_type": payload.token_type.value,
         "jti": payload.jti,
         "iat": int(payload.iat.timestamp()),
@@ -89,6 +96,7 @@ def create_access_token(
     subject: str,
     *,
     company_id: str | None = None,
+    branch_id: str | None = None,
     settings: Settings | None = None,
 ) -> str:
     settings = settings or get_settings()
@@ -97,6 +105,7 @@ def create_access_token(
         token_type=TokenType.ACCESS,
         expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
         company_id=company_id,
+        branch_id=branch_id,
         settings=settings,
     )
 
@@ -105,14 +114,17 @@ def create_refresh_token(
     subject: str,
     *,
     company_id: str | None = None,
+    branch_id: str | None = None,
     settings: Settings | None = None,
+    expires_delta: timedelta | None = None,
 ) -> str:
     settings = settings or get_settings()
     return _create_token(
         subject=subject,
         token_type=TokenType.REFRESH,
-        expires_delta=timedelta(days=settings.refresh_token_expire_days),
+        expires_delta=expires_delta or timedelta(days=settings.refresh_token_expire_days),
         company_id=company_id,
+        branch_id=branch_id,
         settings=settings,
     )
 
