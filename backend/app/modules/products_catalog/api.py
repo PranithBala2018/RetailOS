@@ -7,12 +7,14 @@ codes seeded in `0a79316d69b0_seed_products_catalog_permissions.py`.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.response import success_envelope
 from app.core.db import get_db_session
+from app.core.exceptions import ValidationException
 from app.modules.auth.dependencies import require_permission
+from app.modules.products_catalog.csv_io import CsvImportError
 from app.modules.products_catalog.schemas import (
     BrandCreate,
     BrandRead,
@@ -38,6 +40,7 @@ from app.modules.products_catalog.service import (
     BrandService,
     CategoryService,
     ProductBarcodeService,
+    ProductCsvService,
     ProductImageService,
     ProductService,
     ProductVariantService,
@@ -211,6 +214,53 @@ async def create_product(
             variants=[ProductVariantRead.model_validate(v) for v in variants],
         ).model_dump(mode="json"),
         message="Product created",
+    )
+
+
+@router.get("/products/export")
+async def export_products(
+    current_user: User = Depends(require_permission("products.export")),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    csv_text = await ProductCsvService(session).export_company_products(current_user.company_id)
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="products.csv"'},
+    )
+
+
+@router.post("/products/import")
+async def import_products(
+    file: UploadFile,
+    current_user: User = Depends(require_permission("products.import")),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    raw_bytes = await file.read()
+    try:
+        csv_text = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise ValidationException("File must be UTF-8 encoded CSV text") from exc
+
+    try:
+        results = await ProductCsvService(session).import_company_products(
+            current_user.company_id, csv_text
+        )
+    except CsvImportError as exc:
+        prefix = f"Line {exc.line_number}: " if exc.line_number else ""
+        raise ValidationException(f"{prefix}{exc.message}") from exc
+
+    created = sum(1 for r in results if r.status == "created")
+    skipped = sum(1 for r in results if r.status == "skipped")
+    errors = sum(1 for r in results if r.status == "error")
+    return success_envelope(
+        data={
+            "results": [{"sku": r.sku, "status": r.status, "message": r.message} for r in results],
+            "created": created,
+            "skipped": skipped,
+            "errors": errors,
+        },
+        message=f"Import complete: {created} created, {skipped} skipped, {errors} errors",
     )
 
 

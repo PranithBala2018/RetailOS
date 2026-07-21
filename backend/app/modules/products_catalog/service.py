@@ -9,18 +9,31 @@ the product's own SKU. For `has_variants=True`, the caller-supplied
 `variants` list is authoritative and must be non-empty.
 """
 
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.db_utils import affected_rows
-from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import (
+    AppException,
+    ConflictException,
+    NotFoundException,
+    ValidationException,
+)
+from app.modules.products_catalog.csv_io import (
+    ProductExportRow,
+    ProductImportGroup,
+    parse_products_csv,
+    write_products_csv,
+)
 from app.modules.products_catalog.models import (
     Brand,
     Category,
     Product,
     ProductBarcode,
+    ProductGender,
     ProductImage,
     ProductVariant,
     Unit,
@@ -466,3 +479,178 @@ class ProductImageService:
             is_primary=data.is_primary,
         )
         return await self._repo.create(image)
+
+
+@dataclass
+class ProductImportRowResult:
+    sku: str
+    status: str  # "created" | "skipped" | "error"
+    message: str | None = None
+
+
+class ProductCsvService:
+    """CSV export/import for Products — one row per variant, see
+    csv_io.py for the wire format. Import is deliberately additive only:
+    a SKU that already exists is reported as skipped rather than merged,
+    keeping the reconciliation logic simple and predictable. Re-running
+    the same file is therefore always safe.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self._product_repo = ProductRepository(session)
+        self._variant_repo = ProductVariantRepository(session)
+        self._category_repo = CategoryRepository(session)
+        self._brand_repo = BrandRepository(session)
+        self._unit_repo = UnitRepository(session)
+        self._product_service = ProductService(session)
+
+    async def export_company_products(self, company_id: UUID) -> str:
+        products = await self._product_repo.list_for_company(company_id)
+        categories = {c.id: c.name for c in await self._category_repo.list_for_company(company_id)}
+        brands = {b.id: b.name for b in await self._brand_repo.list_for_company(company_id)}
+        units = {
+            u.id: u.abbreviation
+            for u in await self._unit_repo.list_available_for_company(company_id)
+        }
+
+        rows: list[ProductExportRow] = []
+        for product in products:
+            variants = await self._variant_repo.list_for_product(company_id, product.id)
+            for variant in variants:
+                rows.append(
+                    ProductExportRow(
+                        sku=product.sku,
+                        name=product.name,
+                        description=product.description,
+                        category=categories.get(product.category_id)
+                        if product.category_id
+                        else None,
+                        brand=brands.get(product.brand_id) if product.brand_id else None,
+                        unit=units.get(product.base_unit_id, ""),
+                        gender=product.gender.value if product.gender else None,
+                        season=product.season,
+                        age_group=product.age_group,
+                        hsn_code=product.hsn_code,
+                        tax_percent=product.tax_percent,
+                        track_inventory=product.track_inventory,
+                        allow_negative_stock=product.allow_negative_stock,
+                        low_stock_threshold=product.low_stock_threshold,
+                        is_active=product.is_active,
+                        variant_sku=variant.sku,
+                        size=variant.size,
+                        color=variant.color,
+                        purchase_price=variant.purchase_price,
+                        selling_price=variant.selling_price,
+                        mrp=variant.mrp,
+                    )
+                )
+        return write_products_csv(rows)
+
+    async def import_company_products(
+        self, company_id: UUID, csv_text: str
+    ) -> list[ProductImportRowResult]:
+        groups = parse_products_csv(csv_text)
+
+        results: list[ProductImportRowResult] = []
+        for group in groups:
+            if await self._product_repo.get_by_sku(company_id, group.sku) is not None:
+                results.append(
+                    ProductImportRowResult(
+                        sku=group.sku,
+                        status="skipped",
+                        message="A product with this SKU already exists",
+                    )
+                )
+                continue
+
+            try:
+                async with self._session.begin_nested():
+                    await self._import_one_group(company_id, group)
+                results.append(ProductImportRowResult(sku=group.sku, status="created"))
+            except AppException as exc:
+                results.append(
+                    ProductImportRowResult(sku=group.sku, status="error", message=exc.message)
+                )
+
+        return results
+
+    async def _import_one_group(self, company_id: UUID, group: ProductImportGroup) -> None:
+        category_id = await self._resolve_category_id(company_id, group.category)
+        brand_id = await self._resolve_brand_id(company_id, group.brand)
+        unit = await self._resolve_unit(company_id, group.unit)
+        gender = self._parse_gender(group.gender)
+
+        has_variants = len(group.variants) > 1
+        first_variant = group.variants[0]
+        product_create = ProductCreate(
+            sku=group.sku,
+            name=group.name,
+            description=group.description,
+            category_id=category_id,
+            brand_id=brand_id,
+            base_unit_id=unit.id,
+            gender=gender,
+            season=group.season,
+            age_group=group.age_group,
+            hsn_code=group.hsn_code,
+            tax_percent=group.tax_percent,
+            track_inventory=group.track_inventory,
+            allow_negative_stock=group.allow_negative_stock,
+            low_stock_threshold=group.low_stock_threshold,
+            has_variants=has_variants,
+            purchase_price=first_variant.purchase_price,
+            selling_price=first_variant.selling_price,
+            mrp=first_variant.mrp,
+            variants=[
+                ProductVariantInput(
+                    sku=v.variant_sku,
+                    size=v.size,
+                    color=v.color,
+                    purchase_price=v.purchase_price,
+                    selling_price=v.selling_price,
+                    mrp=v.mrp,
+                )
+                for v in group.variants
+            ]
+            if has_variants
+            else [],
+        )
+        await self._product_service.create(company_id, product_create)
+
+    async def _resolve_category_id(self, company_id: UUID, name: str | None) -> UUID | None:
+        if name is None:
+            return None
+        existing = await self._category_repo.get_by_name(company_id, name)
+        if existing is not None:
+            return existing.id
+        created = await self._category_repo.create(
+            Category(id=uuid4(), company_id=company_id, name=name)
+        )
+        return created.id
+
+    async def _resolve_brand_id(self, company_id: UUID, name: str | None) -> UUID | None:
+        if name is None:
+            return None
+        existing = await self._brand_repo.get_by_name(company_id, name)
+        if existing is not None:
+            return existing.id
+        created = await self._brand_repo.create(Brand(id=uuid4(), company_id=company_id, name=name))
+        return created.id
+
+    async def _resolve_unit(self, company_id: UUID, abbreviation: str) -> Unit:
+        for unit in await self._unit_repo.list_available_for_company(company_id):
+            if unit.abbreviation == abbreviation:
+                return unit
+        raise ValidationException(f"Unknown unit '{abbreviation}'", field="unit")
+
+    def _parse_gender(self, gender: str | None) -> ProductGender | None:
+        if gender is None:
+            return None
+        try:
+            return ProductGender(gender.lower())
+        except ValueError as exc:
+            valid = ", ".join(g.value for g in ProductGender)
+            raise ValidationException(
+                f"Unknown gender '{gender}' — expected one of: {valid}", field="gender"
+            ) from exc
