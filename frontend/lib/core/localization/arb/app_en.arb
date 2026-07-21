@@ -1,0 +1,15 @@
+{
+  "@@locale": "en",
+  "appTitle": "RetailOS",
+  "@appTitle": {
+    "description": "The application title shown in the OS task switcher and window title."
+  },
+  "genericErrorMessage": "Something went wrong. Please try again.",
+  "@genericErrorMessage": {
+    "description": "Fallback error message shown when a Failure has no more specific copy."
+  },
+  "networkErrorMessage": "No internet connection. Changes will sync when you're back online.",
+  "@networkErrorMessage": {
+    "description": "Shown when a network-dependent action is attempted while offline."
+  }
+}
