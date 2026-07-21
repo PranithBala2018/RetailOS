@@ -46,6 +46,17 @@ extend-exclude = ["app/migrations/versions"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's own recommended idiom is `param: T = Depends(...)` — B008
+# otherwise flags every route handler in the codebase.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "app.modules.auth.dependencies.require_permission",
+]
+
 [tool.mypy]
 python_version = "3.11"
 strict = false
