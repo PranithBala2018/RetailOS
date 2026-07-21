@@ -1,0 +1,26 @@
+# See SPRINT0.md §7 (Coding Standards) — flutter_lints as a base, extended
+# with a small set of stricter rules enforced in CI.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "lib/core/localization/generated/**"
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+linter:
+  rules:
+    avoid_print: true
+    always_declare_return_types: true
+    avoid_dynamic_calls: true
+    cancel_subscriptions: true
+    close_sinks: true
+    prefer_final_locals: true
+    prefer_final_in_for_each: true
+    unnecessary_await_in_return: true
+    unawaited_futures: true
