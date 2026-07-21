@@ -60,11 +60,11 @@ Widget _wrap(AuthRepository repository) {
   final router = GoRouter(
     initialLocation: '/forgot-password',
     routes: [
+      GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
       GoRoute(
-        path: '/forgot-password',
-        builder: (context, state) => const ForgotPasswordScreen(),
+        path: '/login',
+        builder: (context, state) => const Scaffold(body: Text('Login')),
       ),
-      GoRoute(path: '/login', builder: (context, state) => const Scaffold(body: Text('Login'))),
       GoRoute(
         path: '/reset-password',
         builder: (context, state) => const Scaffold(body: Text('Reset')),

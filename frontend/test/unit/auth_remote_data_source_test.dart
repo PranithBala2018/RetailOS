@@ -12,10 +12,18 @@ void main() {
   Map<String, dynamic>? lastRequestBody;
   String? lastMethod;
   String? lastPath;
-  Map<String, dynamic> Function() respond = () => <String, dynamic>{'success': true, 'message': 'ok', 'data': <String, dynamic>{}};
+  Map<String, dynamic> Function() respond = () => <String, dynamic>{
+    'success': true,
+    'message': 'ok',
+    'data': <String, dynamic>{},
+  };
 
   setUp(() async {
-    respond = () => <String, dynamic>{'success': true, 'message': 'ok', 'data': <String, dynamic>{}};
+    respond = () => <String, dynamic>{
+      'success': true,
+      'message': 'ok',
+      'data': <String, dynamic>{},
+    };
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
       lastMethod = request.method;

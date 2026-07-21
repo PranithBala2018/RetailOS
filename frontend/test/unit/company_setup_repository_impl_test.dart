@@ -34,7 +34,10 @@ void main() {
     secureStorage = _MockSecureStorage();
     repository = CompanySetupRepositoryImpl(dataSource, TokenStorage(storage: secureStorage));
     when(
-      () => secureStorage.write(key: any(named: 'key'), value: any(named: 'value')),
+      () => secureStorage.write(
+        key: any(named: 'key'),
+        value: any(named: 'value'),
+      ),
     ).thenAnswer((_) async {});
   });
 
@@ -46,9 +49,7 @@ void main() {
     final result = await repository.signUp(params);
 
     expect(result.isRight(), isTrue);
-    verify(
-      () => secureStorage.write(key: 'retailos.auth.access_token', value: 'access'),
-    ).called(1);
+    verify(() => secureStorage.write(key: 'retailos.auth.access_token', value: 'access')).called(1);
     verify(
       () => secureStorage.write(key: 'retailos.auth.refresh_token', value: 'refresh'),
     ).called(1);

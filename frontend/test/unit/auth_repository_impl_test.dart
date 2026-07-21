@@ -200,9 +200,7 @@ void main() {
       final result = await repository.resetPassword(token: 'tok', newPassword: 'new-pass-123');
 
       expect(result.isRight(), isTrue);
-      verify(
-        () => dataSource.resetPassword(token: 'tok', newPassword: 'new-pass-123'),
-      ).called(1);
+      verify(() => dataSource.resetPassword(token: 'tok', newPassword: 'new-pass-123')).called(1);
     });
   });
 
