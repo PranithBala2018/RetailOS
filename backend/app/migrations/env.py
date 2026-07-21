@@ -9,6 +9,14 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from app.common.base_model import Base
 from app.core.config import get_settings
 
+# Imported for their side effect of registering tables on Base.metadata —
+# required for autogenerate to see them. Add each new module's models
+# here as it's built.
+from app.modules.audit import models as audit_models  # noqa: F401
+from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.company import models as company_models  # noqa: F401
+from app.modules.users_roles_permissions import models as identity_models  # noqa: F401
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
