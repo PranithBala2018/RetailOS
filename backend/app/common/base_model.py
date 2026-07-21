@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from sqlalchemy import ForeignKey, MetaData, func
+from sqlalchemy import DateTime, ForeignKey, MetaData, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -47,24 +47,37 @@ class IdMixin:
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
-class TenantMixin:
-    """Tenant scoping column. Paired with Postgres RLS policies (§5.3) once
-    the Identity module introduces `companies`/`branches` in Sprint 2."""
+class CompanyScopedMixin:
+    """Tenant-root scoping column, paired with Postgres RLS policies (§5.3).
+
+    Split out from branch scoping because not every tenant-scoped table
+    fits both: `Company` itself has no `company_id` (it IS the tenant),
+    and `Branch` has a `company_id` but no `branch_id` (a branch isn't
+    scoped to another branch) — see `app/modules/company/models.py`.
+    """
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False, index=True
     )
+
+
+class BranchScopedMixin:
+    """Optional branch scoping — nullable because some tenant-scoped
+    records are company-wide rather than tied to one branch."""
+
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True, index=True
     )
 
 
 class SoftDeleteMixin:
-    deleted_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ConcurrencyMixin:
@@ -77,12 +90,15 @@ class SyncMixin:
     """Offline-sync metadata — see SPRINT0.md §14."""
 
     client_uuid: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    sync_status: Mapped[str] = mapped_column(default="synced", nullable=False)
+    sync_status: Mapped[str] = mapped_column(String(20), default="synced", nullable=False)
 
 
 class AuditMixin:
-    """Actor tracking. FKs to `users.id`, deferred as plain UUID columns
-    (no relationship) until the Identity module exists in Sprint 2."""
+    """Actor tracking. Intentionally plain UUID columns, not FKs to
+    `users.id` — every table in the system uses this mixin, including
+    `users` itself (self-referential), so a hard FK would force strict
+    table-creation ordering everywhere for marginal benefit. Referential
+    integrity here is enforced at the service layer instead."""
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
@@ -90,7 +106,8 @@ class AuditMixin:
 
 class TenantScopedModel(
     IdMixin,
-    TenantMixin,
+    CompanyScopedMixin,
+    BranchScopedMixin,
     TimestampMixin,
     SoftDeleteMixin,
     ConcurrencyMixin,
@@ -101,7 +118,8 @@ class TenantScopedModel(
 
     Business modules should inherit `Base, TenantScopedModel` rather than
     composing mixins individually, unless a table has a genuine reason to
-    omit one (e.g. a company-wide table with no `branch_id`).
+    omit one (e.g. a company-wide table with no `branch_id`) — in which
+    case compose `CompanyScopedMixin` (and the others) directly instead.
     """
 
     __abstract__ = True
