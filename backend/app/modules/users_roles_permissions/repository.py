@@ -25,6 +25,14 @@ class UserRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def get_by_id_unscoped(self, user_id: UUID) -> User | None:
+        """Not company-scoped — for the handful of internal call sites
+        (refresh-token rotation, password-reset completion) where a
+        token already proves which specific user this is, and
+        `user.company_id` itself is what we still need to look up."""
+        stmt = select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
     async def get_by_email(self, email: str) -> User | None:
         """Not company-scoped — email is the global login identity (see
         User model docstring). Used only by the pre-auth login path."""

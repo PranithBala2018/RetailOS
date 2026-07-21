@@ -161,7 +161,9 @@ class UserService:
 
 class RoleService:
     def __init__(self, session: AsyncSession) -> None:
+        self._session = session
         self._repo = RoleRepository(session)
+        self._user_repo = UserRepository(session)
 
     async def list_available_for_company(self, company_id: UUID) -> list[Role]:
         return await self._repo.list_available_for_company(company_id)
@@ -171,6 +173,15 @@ class RoleService:
         if role is None:
             raise NotFoundException("Role not found")
         return role
+
+    async def list_names_for_user(self, user_id: UUID) -> list[str]:
+        role_ids = await self._user_repo.get_role_ids(user_id)
+        names = []
+        for role_id in role_ids:
+            role = await self._repo.get_by_id(role_id)
+            if role is not None:
+                names.append(role.name)
+        return names
 
 
 class PermissionService:
