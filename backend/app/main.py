@@ -15,6 +15,7 @@ from app.core.middleware.request_id import RequestIdMiddleware
 from app.modules.auth.api import router as auth_router
 from app.modules.company.api import router as company_router
 from app.modules.dashboard.api import router as dashboard_router
+from app.modules.products_catalog.api import router as products_catalog_router
 from app.modules.users_roles_permissions.api import router as users_router
 
 logger = get_logger(__name__)
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(company_router, prefix=api_v1_prefix)
     app.include_router(users_router, prefix=api_v1_prefix)
     app.include_router(dashboard_router, prefix=api_v1_prefix)
+    app.include_router(products_catalog_router, prefix=api_v1_prefix)
 
     logger.info("app_configured", environment=settings.environment)
     return app
