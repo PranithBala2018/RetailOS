@@ -20,6 +20,7 @@ from app.modules.auth.schemas import (
     TokenResponse,
 )
 from app.modules.auth.service import AuthService, RequestContext
+from app.modules.company.schemas import BranchRead
 from app.modules.users_roles_permissions.models import User
 from app.modules.users_roles_permissions.service import RBACService
 
@@ -97,6 +98,21 @@ async def switch_branch(
 ) -> dict[str, Any]:
     access_token = await AuthService(session).switch_branch(current_user, data.branch_id)
     return success_envelope(data={"access_token": access_token}, message="Branch switched")
+
+
+@router.get("/my-branches")
+async def my_branches(
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """The caller's own assigned branches — not gated behind the
+    `branches.read` admin permission, since every role needs to pick a
+    branch at login regardless of what they're otherwise allowed to
+    manage."""
+    branches = await AuthService(session).list_my_branches(current_user)
+    return success_envelope(
+        data=[BranchRead.model_validate(b).model_dump(mode="json") for b in branches]
+    )
 
 
 @router.get("/me")

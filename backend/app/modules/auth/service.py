@@ -25,6 +25,8 @@ from app.modules.auth.repository import (
     hash_token,
 )
 from app.modules.auth.schemas import LoginRequest, TokenResponse
+from app.modules.company.models import Branch
+from app.modules.company.repository import BranchRepository
 from app.modules.users_roles_permissions.models import User
 from app.modules.users_roles_permissions.repository import UserRepository
 from app.modules.users_roles_permissions.service import UserService
@@ -275,6 +277,21 @@ class AuthService:
             branch_id=str(target_branch_id),
             settings=self._settings,
         )
+
+    async def list_my_branches(self, user: User) -> list[Branch]:
+        """The branches *this* user is assigned to — deliberately not
+        gated behind the `branches.read` admin permission. Every
+        authenticated user needs this to pick a branch at login/switch
+        time regardless of role (a Cashier can't manage branches but
+        must still be able to see and select their own)."""
+        branch_repo = BranchRepository(self._session)
+        assigned_ids = await self._user_repo.get_assigned_branch_ids(user.id)
+        branches = []
+        for branch_id in assigned_ids:
+            branch = await branch_repo.get_by_id(user.company_id, branch_id)
+            if branch is not None:
+                branches.append(branch)
+        return branches
 
     async def list_sessions(self, user_id: UUID) -> list[RefreshToken]:
         return await self._refresh_repo.list_active_for_user(user_id)
