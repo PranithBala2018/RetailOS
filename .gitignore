@@ -1,0 +1,48 @@
+# --- Secrets / environment ---
+.env
+.env.*
+!.env.example
+!*/.env.example
+
+# --- Python (backend) ---
+backend/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Flutter / Dart (frontend) ---
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+frontend/coverage/
+frontend/**/generated_plugin_registrant.dart
+# Generated code is never committed — CI always regenerates it fresh before
+# analyze/test/build (see docs/adr/0002-do-not-commit-generated-dart-code.md).
+**/*.g.dart
+**/*.freezed.dart
+frontend/lib/core/localization/generated/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/**/gradle-wrapper.jar
+frontend/windows/flutter/ephemeral/
+frontend/linux/flutter/ephemeral/
+frontend/macos/Flutter/ephemeral/
+frontend/ios/Flutter/ephemeral/
+*.iml
+
+# --- Docker ---
+docker-compose.override.local.yml
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
