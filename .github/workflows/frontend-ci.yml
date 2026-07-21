@@ -1,0 +1,62 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate localization
+        run: flutter gen-l10n
+
+      - name: Generate code (freezed / riverpod / drift)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      - name: Test with coverage
+        run: flutter test --coverage
+
+      - name: Strip generated code from the coverage report
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q lcov
+          lcov --remove coverage/lcov.info \
+            'lib/**/*.g.dart' 'lib/**/*.freezed.dart' 'lib/core/localization/generated/**' \
+            -o coverage/lcov.info --ignore-errors unused
+
+      - name: Enforce coverage gate (80% of non-generated code, per SPRINT0.md §20)
+        uses: VeryGoodOpenSource/very_good_coverage@v3
+        with:
+          path: frontend/coverage/lcov.info
+          min_coverage: 80
+
+      - name: Build Android APK (debug)
+        run: flutter build apk --debug

@@ -1,0 +1,72 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+defaults:
+  run:
+    working-directory: backend
+
+env:
+  API_JWT_SECRET_KEY: ci-only-secret-not-used-outside-this-workflow-1234567890
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: retailos
+          POSTGRES_PASSWORD: retailos
+          POSTGRES_DB: retailos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U retailos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Lint (ruff check)
+        run: ruff check .
+
+      - name: Format check (ruff format)
+        run: ruff format --check .
+
+      - name: Type check (mypy)
+        run: mypy app
+
+      - name: Run migrations against a live database
+        env:
+          API_DATABASE_URL: postgresql+asyncpg://retailos:retailos@localhost:5432/retailos
+        run: alembic upgrade head
+
+      - name: Test with coverage
+        env:
+          API_DATABASE_URL: postgresql+asyncpg://retailos:retailos@localhost:5432/retailos
+        run: pytest --cov-report=xml --cov-fail-under=80
+
+      - name: Build Docker image
+        run: docker build -t retailos-api:ci .
