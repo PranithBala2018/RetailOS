@@ -58,10 +58,14 @@ jobs:
       - name: Type check (mypy)
         run: mypy app
 
-      - name: Run migrations against a live database
+      - name: Migration reversibility check (upgrade / downgrade / re-upgrade)
         env:
           API_DATABASE_URL: postgresql+asyncpg://retailos:retailos@localhost:5432/retailos
-        run: alembic upgrade head
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          alembic check
 
       - name: Test with coverage
         env:
