@@ -10,12 +10,15 @@ part 'failure.freezed.dart';
 sealed class Failure with _$Failure {
   const factory Failure.network({String? message}) = NetworkFailure;
 
-  const factory Failure.server({String? message, int? statusCode}) = ServerFailure;
+  const factory Failure.server({String? message, int? statusCode}) =
+      ServerFailure;
 
   const factory Failure.cache({String? message}) = CacheFailure;
 
-  const factory Failure.validation({required String message, Map<String, String>? fieldErrors}) =
-      ValidationFailure;
+  const factory Failure.validation({
+    required String message,
+    Map<String, String>? fieldErrors,
+  }) = ValidationFailure;
 
   const factory Failure.conflict({String? message}) = ConflictFailure;
 

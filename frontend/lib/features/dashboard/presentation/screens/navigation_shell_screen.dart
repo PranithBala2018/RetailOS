@@ -23,7 +23,18 @@ class NavigationShellScreen extends ConsumerWidget {
       label: 'Dashboard',
       path: '/dashboard',
     ),
-    (icon: Icons.person_outline, selectedIcon: Icons.person, label: 'Profile', path: '/profile'),
+    (
+      icon: Icons.inventory_2_outlined,
+      selectedIcon: Icons.inventory_2,
+      label: 'Products',
+      path: '/products',
+    ),
+    (
+      icon: Icons.person_outline,
+      selectedIcon: Icons.person,
+      label: 'Profile',
+      path: '/profile',
+    ),
   ];
 
   int _currentIndex(BuildContext context) {
@@ -54,7 +65,8 @@ class NavigationShellScreen extends ConsumerWidget {
               children: [
                 NavigationRail(
                   selectedIndex: currentIndex,
-                  onDestinationSelected: (index) => _onDestinationSelected(context, index),
+                  onDestinationSelected: (index) =>
+                      _onDestinationSelected(context, index),
                   labelType: NavigationRailLabelType.all,
                   destinations: _destinations
                       .map(
@@ -90,7 +102,8 @@ class NavigationShellScreen extends ConsumerWidget {
           body: child,
           bottomNavigationBar: NavigationBar(
             selectedIndex: currentIndex,
-            onDestinationSelected: (index) => _onDestinationSelected(context, index),
+            onDestinationSelected: (index) =>
+                _onDestinationSelected(context, index),
             destinations: _destinations
                 .map(
                   (d) => NavigationDestination(

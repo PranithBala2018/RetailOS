@@ -30,11 +30,17 @@ class ResponsiveFormScaffold extends StatelessWidget {
             final content = ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 32,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.headlineMedium),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
                     const SizedBox(height: 24),
                     child,
                   ],
@@ -45,7 +51,11 @@ class ResponsiveFormScaffold extends StatelessWidget {
             if (!isWide) return content;
 
             return Center(
-              child: Card(margin: EdgeInsets.zero, elevation: 2, child: content),
+              child: Card(
+                margin: EdgeInsets.zero,
+                elevation: 2,
+                child: content,
+              ),
             );
           },
         ),
