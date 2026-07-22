@@ -94,6 +94,14 @@ class WarehouseRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def list_for_company(self, company_id: UUID) -> list[Warehouse]:
+        stmt = (
+            select(Warehouse)
+            .where(Warehouse.company_id == company_id, Warehouse.deleted_at.is_(None))
+            .order_by(Warehouse.name)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def create(self, warehouse: Warehouse) -> Warehouse:
         self._session.add(warehouse)
         await self._session.flush()

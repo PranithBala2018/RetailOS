@@ -147,6 +147,19 @@ async def update_branch(
     )
 
 
+@router.get("/warehouses")
+async def list_company_warehouses(
+    current_user: User = Depends(require_permission("branches.read")),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Company-wide, across every branch — for pickers (e.g. Inventory's
+    "all warehouses" filter) that shouldn't have to fan out per-branch."""
+    warehouses = await WarehouseService(session).list_for_company(current_user.company_id)
+    return success_envelope(
+        data=[WarehouseRead.model_validate(w).model_dump(mode="json") for w in warehouses]
+    )
+
+
 @router.get("/branches/{branch_id}/warehouses")
 async def list_warehouses(
     branch_id: UUID,

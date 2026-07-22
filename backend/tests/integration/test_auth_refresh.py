@@ -1,4 +1,8 @@
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.auth.models import RefreshToken
 
 
 async def test_refresh_issues_a_new_token_pair(client: AsyncClient, signed_up_owner: dict) -> None:
@@ -42,6 +46,41 @@ async def test_reusing_a_rotated_refresh_token_is_rejected(
         "/api/v1/auth/refresh", json={"refresh_token": original_refresh_token}
     )
     assert second.status_code == 401
+
+
+async def test_refresh_token_reuse_revocation_persists_despite_the_request_ending_in_401(
+    client: AsyncClient, signed_up_owner: dict, db_session: AsyncSession
+) -> None:
+    """Regression test for a production bug: `refresh()` calls
+    `revoke_all_for_user(...)` on detected reuse, then raises
+    `UnauthorizedException` right after — without an explicit commit in
+    between, `get_db_session`'s rollback-on-exception undid the
+    revocation before it ever reached the database. Asserts directly via
+    the DB that every session for the user is actually revoked, not just
+    via the eventual "the old token doesn't work anymore" behavior other
+    tests check."""
+    original_refresh_token = signed_up_owner["refresh_token"]
+
+    first = await client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": original_refresh_token}
+    )
+    assert first.status_code == 200
+
+    # Reuse the original (already-rotated-away) token to trigger
+    # compromise detection.
+    await client.post("/api/v1/auth/refresh", json={"refresh_token": original_refresh_token})
+
+    tokens = (
+        (
+            await db_session.execute(
+                select(RefreshToken).where(RefreshToken.user_id == signed_up_owner["owner_user_id"])
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert tokens, "expected at least one refresh token row for the owner"
+    assert all(t.revoked_at is not None for t in tokens)
 
 
 async def test_refresh_token_reuse_revokes_the_rotated_replacement_too(

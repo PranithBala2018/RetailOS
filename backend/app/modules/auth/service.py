@@ -144,6 +144,12 @@ class AuthService:
                 ip_address=request.ip_address,
                 user_agent=request.user_agent,
             )
+            # Commit before raising: `get_db_session` rolls back on any
+            # exception, and the failed-login counter must durably
+            # persist even though this request ends in a 401 — otherwise
+            # account lockout can never trigger (see the "production bug
+            # fix" note in CHANGELOG.md for how this was found).
+            await self._session.commit()
             raise UnauthorizedException("Invalid email or password")
 
         await self._user_service.record_successful_login(user)
@@ -187,6 +193,11 @@ class AuthService:
                 token.user_id, revoked_at=datetime.now(UTC)
             )
             await self._audit.log("auth.refresh_token_reuse_detected", user_id=token.user_id)
+            # Commit before raising — same reasoning as login()'s
+            # failed-attempt counter above: the revocation must durably
+            # persist even though this request ends in a 401, otherwise
+            # the stolen token (and its rotated replacement) stay valid.
+            await self._session.commit()
             raise UnauthorizedException("This session is no longer valid. Please sign in again.")
 
         if token.expires_at < datetime.now(UTC):

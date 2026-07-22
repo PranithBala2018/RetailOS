@@ -151,6 +151,9 @@ class WarehouseService:
     async def list_for_branch(self, company_id: UUID, branch_id: UUID) -> list[Warehouse]:
         return await self._repo.list_for_branch(company_id, branch_id)
 
+    async def list_for_company(self, company_id: UUID) -> list[Warehouse]:
+        return await self._repo.list_for_company(company_id)
+
     async def create(self, company_id: UUID, data: WarehouseCreate) -> Warehouse:
         warehouse = Warehouse(id=uuid4(), company_id=company_id, **data.model_dump())
         return await self._repo.create(warehouse)

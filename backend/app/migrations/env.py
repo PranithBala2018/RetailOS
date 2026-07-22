@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.modules.audit import models as audit_models  # noqa: F401
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.company import models as company_models  # noqa: F401
+from app.modules.inventory import models as inventory_models  # noqa: F401
 from app.modules.products_catalog import models as products_catalog_models  # noqa: F401
 from app.modules.users_roles_permissions import models as identity_models  # noqa: F401
 

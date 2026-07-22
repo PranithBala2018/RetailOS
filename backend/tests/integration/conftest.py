@@ -42,7 +42,22 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app = create_app()
 
     async def _override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
+        # Mirrors the real `get_db_session`'s commit-on-success/
+        # rollback-on-exception semantics — required for correctness
+        # tests where a request writes something, then a business-rule
+        # check raises afterward (e.g. inventory's atomic stock upsert
+        # followed by a negative-stock policy check): without an actual
+        # rollback here, the already-applied write would incorrectly
+        # persist within this test's shared session even though the
+        # request failed. `db_session`'s own outer transaction (opened
+        # with `create_savepoint` join mode) still gets rolled back at
+        # the end of the test either way, for isolation between tests.
+        try:
+            yield db_session
+            await db_session.commit()
+        except Exception:
+            await db_session.rollback()
+            raise
 
     app.dependency_overrides[real_get_db_session] = _override_get_db_session
 
