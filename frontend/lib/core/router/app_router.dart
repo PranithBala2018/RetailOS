@@ -12,6 +12,8 @@ import '../../features/company_setup/presentation/screens/company_setup_wizard_s
 import '../../features/dashboard/presentation/screens/dashboard_shell_screen.dart';
 import '../../features/dashboard/presentation/screens/navigation_shell_screen.dart';
 import '../../features/dashboard/presentation/screens/profile_screen.dart';
+import '../../features/inventory/presentation/screens/stock_list_screen.dart';
+import '../../features/inventory/presentation/screens/transaction_history_screen.dart';
 import '../../features/products_catalog/presentation/screens/brand_list_screen.dart';
 import '../../features/products_catalog/presentation/screens/category_list_screen.dart';
 import '../../features/products_catalog/presentation/screens/csv_import_export_screen.dart';
@@ -132,6 +134,16 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: '/units',
             builder: (context, state) => const UnitListScreen(),
+          ),
+          GoRoute(
+            path: '/inventory',
+            builder: (context, state) => const StockListScreen(),
+            routes: [
+              GoRoute(
+                path: 'transactions',
+                builder: (context, state) => const TransactionHistoryScreen(),
+              ),
+            ],
           ),
         ],
       ),

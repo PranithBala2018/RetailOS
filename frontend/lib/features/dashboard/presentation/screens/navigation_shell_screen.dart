@@ -30,6 +30,12 @@ class NavigationShellScreen extends ConsumerWidget {
       path: '/products',
     ),
     (
+      icon: Icons.warehouse_outlined,
+      selectedIcon: Icons.warehouse,
+      label: 'Inventory',
+      path: '/inventory',
+    ),
+    (
       icon: Icons.person_outline,
       selectedIcon: Icons.person,
       label: 'Profile',
