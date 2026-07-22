@@ -5,6 +5,94 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] — Sprint 3: Products & Catalog
+
+Full product catalog management — Categories, Brands, Units, Products,
+Product Variants, Barcodes, Images — plus CSV import/export and the
+corresponding Flutter UI. Inventory, Purchases, Customers, Suppliers,
+POS/Billing, and Reports remain unimplemented (see `TASKS.md`).
+
+### Added
+
+**Backend (`backend/`)**
+- 7 new tables (`categories`, `brands`, `units`, `products`,
+  `product_variants`, `product_barcodes`, `product_images`) — see
+  `DATABASE.md`'s "Implemented Schema (Sprint 3)" section. No circular-FK
+  issues this sprint (unlike Sprint 2's branches/users/warehouses
+  cluster) — `categories.parent_category_id` is self-referential but not
+  part of a cross-table cycle.
+- Schema encodes one deliberate rule: **every product has at least one
+  variant**. A `has_variants=false` product gets exactly one variant
+  synthesized from its own SKU and top-level pricing fields;
+  `has_variants=true` requires a non-empty `variants` array. Pricing,
+  barcodes, and (once Inventory exists) stock always hang off the
+  variant, never the product — one code path instead of two. This also
+  realizes Sprint 2's Kids Wear pilot prep: `gender`/`season`/`age_group`
+  classify the product, `size`/`color` distinguish its variants.
+- Full CRUD APIs for all seven tables, each gated behind
+  `categories.*`/`brands.*`/`units.*`/`products.*` permissions (14 new
+  permission codes seeded, assigned across the four Sprint 2 default
+  roles). Optimistic concurrency (`expected_version`) on every versioned
+  update, matching Sprint 2's Company/Branch/User pattern.
+- CSV import/export (`GET /products/export`, `POST /products/import`) —
+  a flat, one-row-per-variant format with category/brand/unit referenced
+  by name so the file is spreadsheet-editable. Import is additive-only
+  (an existing SKU is skipped, never merged, so re-running the same file
+  is always safe); unknown categories/brands are auto-created; each
+  product group commits in its own `SAVEPOINT` so one bad row doesn't
+  roll back the rest of the batch.
+- 105 backend tests (was 81), 78% coverage, run against a real local
+  Postgres instance.
+
+**Frontend (`frontend/`)**
+- Full Products & Catalog UI: product list (search, category filter,
+  client-side sort/pagination — `PaginatedDataTable` on wide layouts, a
+  paged `ListView` on narrow ones, since the backend has no server-side
+  pagination yet), create (including the variant editor), detail (view/
+  edit, add variants/barcodes/images inline), Category/Brand/Unit
+  management, and a CSV Import/Export screen (download template, import
+  with a per-row created/skipped/error result table, export).
+- New `file_picker`/`path_provider` dependencies for CSV file
+  selection and saving — the first file-system-touching feature in the
+  app; every other dependency added this sprint was needed to talk to
+  the new backend module, not new infrastructure.
+- New reusable `core/widgets`: `AsyncValueView` (generalizes the
+  loading/error/data pattern from Sprint 2's Dashboard screen),
+  `EmptyState`, `ConfirmDialog`, `PermissionGate` (hides create/edit/
+  delete/export/import affordances the signed-in user's RBAC permission
+  set doesn't include — the first frontend feature to gate its own UI on
+  `CurrentUser.permissions`, not just rely on the API to reject).
+  `core/utils/money_format.dart` establishes this app's first
+  money-handling convention: prices stay as the backend's wire-format
+  `String` (e.g. `"120.00"`) end-to-end, parsed only at display/input —
+  no `Decimal`/`Money` package introduced.
+- Products tab added to `NavigationShellScreen`; new GoRoutes nested
+  under `/products` (`/products/new`, `/products/import-export`,
+  `/products/:productId`) plus `/categories`, `/brands`, `/units`.
+- 132 frontend tests (was 69), 90.4% coverage of non-generated code — every
+  `ProductsCatalogRepository` method has at least one data-source
+  wire-format test, one repository-impl success test, and (for the
+  stateful notifiers) one provider-level round-trip test through a fake
+  in-memory repository.
+
+### Known issues
+
+- Postgres RLS remains deferred (`docs/adr/0003`) — this sprint's scope
+  didn't touch the pre-auth login path that ADR is blocked on, so it's
+  still open work for a future sprint, not resolved here.
+- Product list pagination/sorting is client-side only — the backend's
+  `GET /products` has no `limit`/`offset`/`sort` parameters yet, so the
+  Flutter list fetches the full filtered result set and paginates in
+  memory. Fine at current expected catalog sizes; will need a real
+  backend contract before very large catalogs.
+- `product_images` stores a URL string only — there is no raw file
+  upload endpoint, so the Flutter "Add image" flow is paste-a-link, not
+  a device photo picker.
+- Windows desktop `flutter build windows` is not locally verified in
+  this dev environment (same Developer Mode / symlink-support
+  prerequisite noted in Sprint 1's known issues) — `flutter analyze` and
+  `flutter test` are the available verification here.
+
 ## [0.2.0] — Sprint 2: Identity & Organization
 
 Full authentication, company/branch/user management, and RBAC — the

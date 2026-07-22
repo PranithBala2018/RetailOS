@@ -44,13 +44,13 @@ Build a production-ready Retail ERP + POS system in incremental phases. Each pha
 
 # Phase 4 – Product Management
 
-- [ ] Categories
-- [ ] Products
-- [ ] Barcode
-- [ ] Product Images
-- [ ] Product Variants
-- [ ] CSV Import
-- [ ] CSV Export
+- [x] Categories
+- [x] Products
+- [x] Barcode
+- [x] Product Images
+- [x] Product Variants
+- [x] CSV Import
+- [x] CSV Export
 
 ---
 

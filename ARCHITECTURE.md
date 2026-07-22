@@ -101,5 +101,12 @@ for what shipped each sprint.
   Wizard, Branch Selection, Dashboard Shell, Navigation Shell, Profile).
   Tenant isolation is enforced at the application layer; Postgres RLS is
   deferred to Sprint 3 (`docs/adr/0003`).
-- **Not yet implemented**: Products, Inventory, Purchases, Customers,
-  Suppliers, POS/Billing, Reports, AI modules — per `TASKS.md`.
+- **Sprint 3** — Products & Catalog: Categories, Brands, Units, Products,
+  Product Variants, Barcodes, Images, full CRUD backend APIs with the
+  "every product has ≥1 variant" schema rule, CSV import/export, and the
+  corresponding Flutter screens (product list with search/filter/sort/
+  pagination, create/detail/edit, Category/Brand/Unit management,
+  Import/Export). Postgres RLS remains deferred (`docs/adr/0003`) — this
+  sprint didn't touch the pre-auth login path that ADR is blocked on.
+- **Not yet implemented**: Inventory, Purchases, Customers, Suppliers,
+  POS/Billing, Reports, AI modules — per `TASKS.md`.

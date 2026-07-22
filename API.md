@@ -100,21 +100,61 @@ GET    /dashboard/shell    (requires `dashboard.read`) — infrastructure
 
 ---
 
-## Products
+## Products & Catalog (Sprint 3)
 
-GET    /products
-POST   /products
-PUT    /products/{id}
-DELETE /products/{id}
+Every endpoint below is scoped to the caller's own `company_id` (from the
+JWT) and gated behind the matching `categories.*`/`brands.*`/`units.*`/
+`products.*` permission code. See `backend/app/modules/products_catalog/api.py`
+for the exact implementation.
 
+```
 GET    /categories
-POST   /categories
+POST   /categories                          (requires categories.create)
+GET    /categories/{id}
+PUT    /categories/{id}?expected_version=N   (requires categories.update)
 
-Import:
-POST /products/import
+GET    /brands
+POST   /brands                               (requires brands.create)
+GET    /brands/{id}
+PUT    /brands/{id}?expected_version=N       (requires brands.update)
 
-Export:
-GET /products/export
+GET    /units
+POST   /units                                (requires units.create; no update — see DATABASE.md)
+
+GET    /products?search=&category_id=
+POST   /products                             (requires products.create)
+GET    /products/{id}                        (returns { product, variants })
+PUT    /products/{id}?expected_version=N     (requires products.update — product-level fields only)
+DELETE /products/{id}?expected_version=N     (requires products.delete — soft "disable", is_active=false)
+
+GET    /products/{id}/variants
+POST   /products/{id}/variants               (requires products.update)
+PUT    /product-variants/{id}?expected_version=N   (requires products.update)
+
+GET    /product-variants/{id}/barcodes
+POST   /product-variants/{id}/barcodes       (requires products.update)
+
+GET    /products/{id}/images
+POST   /products/{id}/images                 (requires products.update)
+
+GET    /products/export                      (requires products.export — streams text/csv)
+POST   /products/import                      (requires products.import — multipart file upload)
+```
+
+Every mutating endpoint that touches a versioned row (categories, brands,
+products, variants) takes `expected_version` as a query parameter and
+returns `409 Conflict` if it's stale — the same optimistic-concurrency
+pattern as Sprint 2's Company/Branch/User endpoints.
+
+`POST /products` accepts a `has_variants` flag: `false` synthesizes exactly
+one variant from the request's top-level pricing fields (reusing the
+product's SKU); `true` requires a non-empty `variants` array. There is no
+way to change `sku`/`has_variants` after creation — variants are added one
+at a time via `POST /products/{id}/variants` instead.
+
+CSV import/export use a flat, one-row-per-variant format with
+category/brand/unit referenced by name — see DATABASE.md's "CSV
+import/export" section for the full contract and idempotency guarantee.
 
 ---
 
