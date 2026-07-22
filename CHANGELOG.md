@@ -5,6 +5,106 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] — Sprint 4: Inventory
+
+Stock ledger and the four direct/manual movement types — Stock In, Stock
+Out, Transfer, Adjustment — plus Low Stock Alerts, backend and Flutter UI.
+Purchases, POS, and Customers/Suppliers remain unimplemented (see
+`TASKS.md`).
+
+### Added
+
+**Backend (`backend/`)**
+- 3 new tables (`stock_levels`, `stock_transactions`, `stock_transfers`) —
+  see `DATABASE.md`'s "Implemented Schema (Sprint 4)" section for the full
+  design, and `docs/adr/0004` for why this consolidates SPRINT0's sketch
+  and ships without native Postgres partitioning this sprint.
+- Concurrency-correct by construction: every mutation goes through a
+  single atomic `INSERT ... ON CONFLICT DO UPDATE` upsert against
+  `stock_levels`, with a post-write policy check
+  (`track_inventory`/`allow_negative_stock`) that rolls back the whole
+  movement — including its ledger row — if violated. Adjustments use a
+  `SELECT ... FOR UPDATE`-based absolute-set primitive instead (they
+  apply a physically recounted total, not a delta). Transfers acquire
+  their two warehouse locks in a canonical order to prevent deadlock
+  between concurrent opposite-direction transfers on the same warehouse
+  pair. Proven with dedicated dual-connection concurrency tests, not
+  just unit-level happy path (per SPRINT0 §20's explicit mandate for
+  this specific risk area).
+- Full CRUD/query API: Stock In/Out/Transfer/Adjustment, current-stock
+  and low-stock queries, and a transaction ledger — the first endpoint
+  in this API (`GET /inventory/transactions`) using real cursor
+  pagination (`app/common/pagination.py`'s `Page[T]`, written in Sprint 1,
+  never used until now) instead of an unbounded list.
+- 5 new permission codes (`inventory.read`/`stock_in`/`stock_out`/
+  `transfer`/`adjust`), assigned across the Sprint 2 default roles;
+  Manager gets the four additive/traceable actions but not `adjust`
+  (held back to Admin/Super Admin, matching Sprint 3's precedent for
+  actions that can silently overwrite recorded state).
+- Small additive change to the `company` module: `GET /warehouses`
+  (company-wide, across every branch) — needed for Inventory's "all
+  warehouses" view, since the existing warehouse listing was branch-scoped
+  only.
+- **Production bug fix, found and fixed during this sprint's own
+  transaction-correctness work, not new Inventory functionality**: the
+  shared integration-test fixture (`tests/integration/conftest.py`) never
+  replicated `get_db_session`'s real commit-on-success/
+  rollback-on-exception behavior — it just yielded the session and did
+  nothing. This never mattered before (every prior module validates
+  before writing), but Inventory's design (write, then validate, then
+  maybe raise) needed the fixture fixed to test correctly. Fixing it
+  surfaced a real bug in `app/modules/auth/service.py`: `login()`'s
+  failed-attempt counter increment and `refresh()`'s stolen-token
+  revocation each write state and then raise `UnauthorizedException`
+  right after, with no commit in between — meaning `get_db_session`'s
+  rollback-on-exception was undoing them in production, silently
+  breaking account lockout after repeated failed logins and session
+  revocation on refresh-token reuse since Sprint 2. Fixed with two
+  targeted `await self._session.commit()` calls right before the raise
+  in each spot; regression tests added asserting both persist directly
+  via the database, not just via the eventual lockout/revocation
+  behavior other tests already checked.
+- 105 → 123 backend tests, 79% coverage, run against a real local
+  Postgres instance, including new dual-connection concurrency tests
+  that can't use the shared single-connection test fixture.
+
+**Frontend (`frontend/`)**
+- Full Inventory UI: Stock List (per-warehouse or all, low-stock filter,
+  search, quick actions per row gated per-permission), Stock In/Out and
+  Adjustment dialogs, Transfer dialog (two-warehouse picker), Transaction
+  History (the first Flutter screen backed by real cursor pagination —
+  "load more" rather than client-side paging). Row-first navigation:
+  every movement dialog already knows which variant it's acting on (the
+  row tapped), rather than a separate blank "create" flow.
+- New `Warehouse` entity/data layer (Sprint 2 never built one — warehouses
+  were backend-only until now).
+- New nav destination and GoRoutes under `/inventory`.
+- 132 → 144 frontend tests; `flutter analyze` clean.
+
+### Known issues / scope notes
+
+- Per `docs/adr/0004`: no domain event bus (nothing needs to publish into
+  Inventory yet — Purchases/POS are unbuilt), no `product_batches`/expiry
+  tracking, no Flutter offline-sync engine, and `stock_transactions` ships
+  unpartitioned — each with a stated re-trigger condition in the ADR.
+- Transfers are synchronous/immediate — no in-transit/received two-step
+  workflow (TASKS.md/SPRINT0 describe "Stock Transfer" as a flat
+  capability, not a multi-step one; revisit if a real logistics-tracking
+  need shows up).
+- Low Stock Alerts is an on-demand query + UI filter, not a push/email/SMS
+  notification (the Platform/Notifications bounded context doesn't exist).
+- Frontend test coverage for Inventory is narrower than Sprint 3's: the
+  data-source/repository-impl layers are covered (wire-format + error
+  mapping), but there are no provider-level (fake-repository) or widget
+  tests yet for the new screens/dialogs — a real gap, not a design choice,
+  worth closing in a follow-up pass.
+- No interactive manual click-through of the Flutter UI against a live
+  backend was performed in this environment (no browser/device available
+  here, same limitation noted since Sprint 1) — verification is by
+  `flutter analyze`/`flutter test` (wire format matches the real backend
+  JSON envelope, checked in tests) plus the backend's own HTTP-level
+  integration tests against real Postgres, not a manual UI walkthrough.
+
 ## [0.3.0] — Sprint 3: Products & Catalog
 
 Full product catalog management — Categories, Brands, Units, Products,

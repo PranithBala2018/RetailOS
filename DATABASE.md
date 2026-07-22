@@ -167,3 +167,45 @@ never merged or overwritten, so re-running the same file is always safe.
 Unknown categories/brands are created automatically; an unknown unit
 abbreviation is a per-row error that doesn't abort the rest of the batch (each
 product group commits inside its own `SAVEPOINT`).
+
+---
+
+## Implemented Schema (Sprint 4 — Inventory)
+
+Per `docs/adr/0004`, this consolidates SPRINT0 §5.2's four-table sketch
+(`stock`/`stock_transactions`/`stock_adjustments`/`stock_transfers`) plus
+`product_batches` into three tables, and ships `stock_transactions` as a
+plain (non-partitioned) table rather than the day-one monthly partitioning
+§5.5 calls for — see that ADR for the reasoning and re-trigger conditions.
+
+### Tables
+
+| Table | Notes |
+|---|---|
+| `stock_levels` | Current balance only. One row per `(company_id, warehouse_id, product_variant_id)` — unique constraint on that triple. Mutated exclusively via an atomic `INSERT ... ON CONFLICT DO UPDATE` upsert (`InventoryRepository.upsert_delta`), never a plain `UPDATE` — this is what makes concurrent movements on the same row race-free without an explicit `SELECT ... FOR UPDATE`. Deliberately **no `CHECK (quantity >= 0)`**: `allow_negative_stock` is a legitimate per-product policy enforced at the service layer, not a DB-level invariant. |
+| `stock_transactions` | Immutable, append-only ledger — every movement (Stock In, Stock Out, Transfer leg, Adjustment) writes exactly one row. No `ConcurrencyMixin`/`SoftDeleteMixin` (audit-log-style, matching `AuditLog`). `movement_type` enum: `stock_in`/`stock_out`/`transfer_out`/`transfer_in`/`adjustment`. `quantity_before` is deliberately not stored — always derivable as `quantity_after - quantity_delta`. `branch_id` is denormalized from the warehouse for branch-level reporting without a join. Indexed on `(company_id, created_at)` and `(company_id, product_variant_id, created_at)`. |
+| `stock_transfers` | Thin header row grouping a transfer's two ledger legs (`transfer_out` from the source, `transfer_in` to the destination, both referencing this row via `transfer_id`). No status/state machine — transfers are synchronous (decrement source + increment destination + both ledger rows, one DB transaction). |
+
+### Concurrency
+
+Every stock mutation goes through the same atomic upsert
+(`stock_levels`'s row lock, taken via its unique index), then a
+post-write policy check (`track_inventory`/`allow_negative_stock`)
+raises before the request commits if violated — the raise rolls back
+the upsert too, so a rejected movement leaves nothing behind. Adjustments
+use a different primitive (`set_absolute`: `INSERT ... ON CONFLICT DO
+NOTHING` then `SELECT ... FOR UPDATE` then `UPDATE`) since they set an
+absolute recounted value, not a delta, and need to read "the value
+immediately before this set" under the same lock to compute an accurate
+ledger delta. Transfers acquire their two warehouse-row locks in a
+canonical order (lexicographically smaller `warehouse_id` first,
+regardless of transfer direction) specifically to prevent a deadlock
+between two concurrent transfers moving stock in opposite directions
+between the same warehouse pair.
+
+### Cross-module reads
+
+`InventoryService` reads `Product.track_inventory`/`allow_negative_stock`/
+`low_stock_threshold` and `ProductVariant` via `products_catalog`'s
+`ProductService`/`ProductVariantService` — never that module's
+repository/models directly — per SPRINT0 §1.2's cross-module rule.

@@ -181,11 +181,40 @@ POST /purchases
 
 ---
 
-## Inventory
+## Inventory (Sprint 4)
 
-GET /inventory
-POST /inventory/adjustment
-POST /inventory/transfer
+Every endpoint is scoped to the caller's own `company_id` and gated behind
+the matching `inventory.*` permission code. `stock_transactions` rows are
+immutable — there is no PUT/DELETE anywhere in this module; `stock_levels`
+is never written directly, only as a side effect of the four POST endpoints.
+
+```
+GET  /inventory/stock?warehouse_id=&search=&category_id=&low_stock_only=   (requires inventory.read)
+GET  /inventory/stock/{product_variant_id}?warehouse_id=                    (requires inventory.read)
+GET  /inventory/low-stock?warehouse_id=                                     (requires inventory.read)
+
+POST /inventory/stock-in       {warehouse_id, product_variant_id, quantity, reason?, note?}        (requires inventory.stock_in)
+POST /inventory/stock-out      {warehouse_id, product_variant_id, quantity, reason?, note?}        (requires inventory.stock_out)
+POST /inventory/adjustments    {warehouse_id, product_variant_id, counted_quantity, reason, note?} (requires inventory.adjust)
+POST /inventory/transfers      {from_warehouse_id, to_warehouse_id, product_variant_id, quantity, note?} (requires inventory.transfer)
+
+GET  /inventory/transactions?warehouse_id=&product_variant_id=&movement_type=&date_from=&date_to=&cursor=&limit=  (requires inventory.read)
+
+GET  /warehouses   (company-wide, across every branch — requires branches.read; lives in the company module, see DATABASE.md)
+```
+
+`counted_quantity` (Adjustment) is the physically recounted total, not a
+delta — the server computes `delta = counted_quantity - current_quantity`
+under the same row lock that applies it. `/inventory/transactions` is the
+first endpoint in this API using real cursor pagination
+(`app/common/pagination.py`'s `Page[T]`) rather than an unbounded list.
+
+Role gating follows the Sprint 3 precedent (full read + additive/reversible
+actions for Manager, destructive-or-silently-overwriting actions held back
+to Admin/Super Admin): Manager gets `read`/`stock_in`/`stock_out`/`transfer`
+but not `adjust` (an adjustment overwrites a recorded quantity with no
+visible "this was overwritten" marker beyond the ledger row itself).
+Cashier gets none of the five.
 
 ---
 

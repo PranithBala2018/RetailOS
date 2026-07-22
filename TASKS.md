@@ -56,11 +56,11 @@ Build a production-ready Retail ERP + POS system in incremental phases. Each pha
 
 # Phase 5 – Inventory
 
-- [ ] Stock In
-- [ ] Stock Out
-- [ ] Stock Transfer
-- [ ] Stock Adjustment
-- [ ] Low Stock Alerts
+- [x] Stock In
+- [x] Stock Out
+- [x] Stock Transfer
+- [x] Stock Adjustment
+- [x] Low Stock Alerts
 
 ---
 
